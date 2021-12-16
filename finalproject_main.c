@@ -85,9 +85,8 @@ uint16_t gb8 = 0;
 uint16_t gb9 = 0;
 uint16_t gb10 = 0;
 uint16_t gb11 = 0;
-uint16_t gb12 = 0;
-uint16_t gb13 = 0;
-uint16_t gbFlag = 0;
+
+
 uint16_t blockX[7];
 uint16_t blockY[7];
 uint16_t blockWidth[7];
@@ -949,19 +948,6 @@ void setupSpib(void)
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;  // Slave Select Low
 
     // Perform the number of needed writes to SPITXBUF to write to all 13 registers. Remember we are sending 16 bit transfers, so two registers at a time after the first 16 bit transfer.
-    // To address 00x13 write 0x00
-    // To address 00x14 write 0x00
-    // To address 00x15 write 0x00
-    // To address 00x16 write 0x00
-    // To address 00x17 write 0x00
-    // To address 00x18 write 0x00
-    // To address 00x19 write 0x13
-    // To address 00x1A write 0x02
-    // To address 00x1B write 0x00
-    // To address 00x1C write 0x08
-    // To address 00x1D write 0x06
-    // To address 00x1E write 0x00
-    // To address 00x1F write 0x00
 
     SpibRegs.SPITXBUF = 0x1300;
     SpibRegs.SPITXBUF = 0x0000;
@@ -1137,8 +1123,15 @@ void setupSpib(void)
 }
 
 
-//setup code for SPIC that is used for Pixy comm
-
+//Setup code for SPIC that is used for Pixy comm
+//Wiring diagram
+//Wire Color | Pixy ->  Redboard |Function
+//Red        | Pin 2    5V       |Power
+//Green      | Pin 6    GND      |Ground
+//Brown      | Pin 1    GPIO123  |SPI MISO
+//White      | Pin 4    GPIO122  |SPI MOSI
+//Black      | Pin 3    GPIO124  |SPI SCK
+//Gray       | Pin 7    GPIO125  |SPI SS
 void setupSpic(void)
 {
     int16_t temp = 0;
@@ -1184,13 +1177,11 @@ void setupSpic(void)
     GPIO_SetupPinMux(123, GPIO_MUX_CPU1, 6);  //Set GPIO123 pin to SPISOMIC
     GPIO_SetupPinMux(124, GPIO_MUX_CPU1, 6);  //Set GPIO124 pin to SPICLKC
 
-    // perform a multiple 16 bit transfer to initialize   Use only one SS low to high for all these writes
+    //This block of code is used to getVersion() from PixyCam
+    //Get hardware and software version of PixyCam to confirm communications is functioning
+     /*GpioDataRegs.GPDCLEAR.bit.GPIO125 = 1;  // Slave Select Low
 
-    /*GpioDataRegs.GPDCLEAR.bit.GPIO125 = 1;  // Slave Select Low
-
-    // Perform the number of needed writes to SPITXBUF to write to all 13 registers. Remember we are sending 16 bit transfers, so two registers at a time after the first 16 bit transfer.
-
-
+    //we are sending 16 bit transfers, so two bytes at a time.
     SpicRegs.SPITXBUF = 0xaec1;
     SpicRegs.SPITXBUF = 0x0e00;
     SpicRegs.SPITXBUF = 0x00;
@@ -1205,7 +1196,6 @@ void setupSpic(void)
     SpicRegs.SPITXBUF = 0x00;
     SpicRegs.SPITXBUF = 0x00;
     SpicRegs.SPITXBUF = 0x00;
-
     // wait for the correct number of 16 bit values to be received into the RX FIFO
     while (SpicRegs.SPIFFRX.bit.RXFFST != 14)
         ;
@@ -1230,9 +1220,7 @@ void setupSpic(void)
     fwt = SpicRegs.SPIRXBUF;
 
     GpioDataRegs.GPDSET.bit.GPIO125 = 1; // Slave Select High
-
-    DELAY_US(10);*/ // Delay 10us to allow time to get ready for next transfer.
-
+*/
 
     // Clear SPIB interrupt source just in case it was issued due to any of the above initializations.
     SpicRegs.SPIFFRX.bit.RXFFOVFCLR = 1;  // Clear Overflow flag
@@ -1424,62 +1412,72 @@ void changeInputs(void)
 }
 
 //pixy getblocks function
+//pixy doc at https://docs.pixycam.com/wiki/doku.php?id=wiki:v2:porting_guide#getblocks-sigmap-maxblocks
+//Send request to Pixy over SPI for Pixy function getBlocks(sigmap,maxBlocks)
+//For use in this program the request uses a default of maxBlocks = 1
+//6 byte request
+//Byte   Description       Value
+//0-1   16-bit sync         174,193
+//2     Type of packet      32
+//3     Length of payload   2
+//4     Sigmap to receive   (1-7)
+//5     Max Blocks to return(0-255)
+
 void getBlocks(uint16_t sgn)
 {
    GpioDataRegs.GPDCLEAR.bit.GPIO125 = 1; //Slave Select low
-    SpicRegs.SPITXBUF = 0xaec1;
-    SpicRegs.SPITXBUF = 0x2002;
-    SpicRegs.SPITXBUF = ((1<<(sgn+7))+ 0x0001);
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-
-    while (SpicRegs.SPIFFRX.bit.RXFFST != 16);
-    temp = SpicRegs.SPIRXBUF;
-    temp = SpicRegs.SPIRXBUF;
-    temp = SpicRegs.SPIRXBUF;
-    temp = SpicRegs.SPIRXBUF;
-    temp = SpicRegs.SPIRXBUF;
-    temp = SpicRegs.SPIRXBUF;
-    gb1 = SpicRegs.SPIRXBUF;
-    gb2 = SpicRegs.SPIRXBUF;
-    gb3 = SpicRegs.SPIRXBUF;
-    gb4 = SpicRegs.SPIRXBUF;
-    gb5 = SpicRegs.SPIRXBUF;
-    gb6 = SpicRegs.SPIRXBUF;
-    gb7 = SpicRegs.SPIRXBUF;
-    gb8 = SpicRegs.SPIRXBUF;
-    gb9 = SpicRegs.SPIRXBUF;
-    gb10 = SpicRegs.SPIRXBUF;
+    SpicRegs.SPITXBUF = 0xaec1; //16 bit sync (174, 193)
+    SpicRegs.SPITXBUF = 0x2002; //Type of packet 32 converts to hex 20 + Length of payload 02
+    SpicRegs.SPITXBUF = ((1<<(sgn+7))+ 0x0001); //Sigmap to receive set by sgn value in function + Max block of 01
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    // wait for the correct number of 16 bit values to be received into the RX FIFO
+    while (SpicRegs.SPIFFRX.bit.RXFFST != 16); //Set to buffer max of 16 (cont. after read)
+    temp = SpicRegs.SPIRXBUF; //Read echo to temp
+    temp = SpicRegs.SPIRXBUF; //Read echo to temp
+    temp = SpicRegs.SPIRXBUF; //Read echo to temp
+    temp = SpicRegs.SPIRXBUF; //Read echo to temp
+    temp = SpicRegs.SPIRXBUF; //Read echo to temp
+    temp = SpicRegs.SPIRXBUF; //Read echo to temp
+    gb1 = SpicRegs.SPIRXBUF; //16 byte sync 1st byte (first byte is repeated twice, not in documentation but consistently behaves this way)
+    gb2 = SpicRegs.SPIRXBUF; //16 byte sync 2nd byte, and type of packet (33)
+    gb3 = SpicRegs.SPIRXBUF; //Length of payload and 1st byte of 16 bit checksum
+    gb4 = SpicRegs.SPIRXBUF; //2nd byte of 16 bit checksum and 1st byte of Color code
+    gb5 = SpicRegs.SPIRXBUF; //2nd byte of Color code and 1st byte of X block center
+    gb6 = SpicRegs.SPIRXBUF; //2nd byte of X block center and 1st byte of Y block center
+    gb7 = SpicRegs.SPIRXBUF; //2nd byte of Y block center and 1st byte of Block width
+    gb8 = SpicRegs.SPIRXBUF; //2nd byte of Block width and 1st byte of block height
+    gb9 = SpicRegs.SPIRXBUF; //2nd byte of block height and 1st byte of color code angle
+    gb10 = SpicRegs.SPIRXBUF;//2nd byte of color code angle and Tracking index of block
 
     DELAY_US(10); // Delay 10us to allow time to get ready for next transfer.
 
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
-    SpicRegs.SPITXBUF = 0x00;
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    SpicRegs.SPITXBUF = 0x00; //Writing blank to receive full 19 byte response
+    // wait for the correct number of 16 bit values to be received into the RX FIFO
     while (SpicRegs.SPIFFRX.bit.RXFFST != 3);
-    gb11 = SpicRegs.SPIRXBUF;
-    gb12 = SpicRegs.SPIRXBUF;
-    gb13 = SpicRegs.SPIRXBUF;
+    gb11 = SpicRegs.SPIRXBUF; //Number of frames the block has been tracked.
+    temp = SpicRegs.SPIRXBUF; //Read extra data to temp
+    temp = SpicRegs.SPIRXBUF; //Read extra data to temp
 
-    if ((gb2 & 0x00FF) == (0x0021)) {
-            gbFlag = 1;
-            blockX[sgn-1] = (gb6 & 0xFF00) | (gb5 & 0x00FF);
-            blockY[sgn-1] = (gb7 & 0xFF00) | (gb6 & 0x00FF);
-            blockWidth[sgn-1] = (gb8 & 0xFF00) | (gb7 & 0x00FF);
-            blockHeight[sgn-1] = (gb9 & 0xFF00) | (gb8 & 0x00FF);
-
+    if ((gb2 & 0x00FF) == (0x0021)) { //Check that the type of packet is 33 (packet type for getBlock response)
+            blockX[sgn-1] = (gb6 & 0xFF00) | (gb5 & 0x00FF); //bitmask gb6 and concatenate with bitmask of gb5 and store in array
+            blockY[sgn-1] = (gb7 & 0xFF00) | (gb6 & 0x00FF); //bitmask gb7 and concatenate with bitmask of gb6 and store in array
+            blockWidth[sgn-1] = (gb8 & 0xFF00) | (gb7 & 0x00FF); //bitmask gb8 and concatenate with bitmask of gb7 and store in array
+            blockHeight[sgn-1] = (gb9 & 0xFF00) | (gb8 & 0x00FF); //bitmask gb9 and concatenate with bitmask of gb8 and store in array
     }
-    GpioDataRegs.GPDSET.bit.GPIO125 = 1; // Slave Select High
+    GpioDataRegs.GPDSET.bit.GPIO125 = 1; // Slave Select High done reading from Pixy Cam
 
 }
